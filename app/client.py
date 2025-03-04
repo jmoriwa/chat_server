@@ -1,6 +1,8 @@
 import socket
 import threading
 import os
+import time
+from pynput import keyboard
 
 
 SERVER_IP = "127.0.0.1"  # Placeholder
@@ -22,9 +24,28 @@ tcp_client.send(f"{nickname} has joined the chat ".encode('ascii'))
 udp_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 
+last_typing_time = 0
+
 def send_status(status):
     """Sends 'is typing...' updates over UDP"""
     udp_client.sendto(f"STATUS:{nickname} : {status}.".encode('ascii'), (SERVER_IP, UDP_PORT))
+
+
+def detect_typing():
+    """Detects keyboard activity and sends 'typing' status"""
+    global last_typing_time
+
+    def on_press(key):
+        global last_typing_time
+        current_time = time.time()
+        
+        # Send typing status only if enough time has passed to avoid spam
+        if current_time - last_typing_time > 2:
+            send_status("typing...")
+            last_typing_time = current_time
+
+    listener = keyboard.Listener(on_press=on_press)
+    listener.start()
 
 
 
@@ -64,8 +85,10 @@ def write():
                 print("Disconnecting from chat...")
                 tcp_client.close()
                 break
-            elif msg_content.lower() == "/typing":
-                send_status("typing...")
+                '''
+                elif msg_content.lower() == "/typing":
+                    send_status("typing...")
+                '''
             else:
                 tcp_client.send(f"{nickname}: {msg_content}".encode('ascii'))
         

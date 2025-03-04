@@ -1,4 +1,9 @@
 import socket
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
 
 # UDP Server for Status Notifications
 def udp_server():
@@ -9,7 +14,8 @@ def udp_server():
     server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server.bind((udp_ip, udp_port))
 
-    print(f"UDP Server is listening on {udp_ip}:{udp_port} for status notifications...")
+    logging.info(f"UDP Server is running on {udp_ip}:{udp_port}...")
+
 
     while True:
         try:
@@ -20,13 +26,14 @@ def udp_server():
             # Process the message (status update)
             if message.decode().startswith("STATUS:"):
                 _, sender, status = decoded_msg.split(":", 2)
-                print(f"{sender} is {status}")
+                #print(f"{sender} is {status}")
+                logging.info(f"Typing status update from {addr}: {message}")
 
             else:
-                print("Invalid UDP message format.")
+                logging.warning(f"Invalid UDP message format from {addr}")
 
         except Exception as e:
-            print(f"UDP Server error: {e}")
+            logging.error(f"Error in UDP server: {e}")
             break
 
 
