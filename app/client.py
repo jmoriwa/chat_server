@@ -1,63 +1,102 @@
 import socket
 import threading
+import os
 
 
 SERVER_IP = "127.0.0.1"  # Placeholder
-TCP_PORT = 5001
-
+TCP_PORT = 8082
+UDP_PORT = 8081
+BUFFER_SIZE = 1024
 
 
 
 nickname = input("Choose a nickname: ")
 
 #TCP client socket
-client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-client.connect(('localhost', 5555))
-client.send(nickname.encode('ascii'))
+tcp_client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+tcp_client.connect((SERVER_IP, TCP_PORT))
+tcp_client.send(f"{nickname} has joined the chat ".encode('ascii'))
 
 
-def receive():
+#UDP client socket for short messages
+udp_client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+
+def send_status(status):
+    """Sends 'is typing...' updates over UDP"""
+    udp_client.sendto(f"STATUS:{nickname} : {status}.".encode('ascii'), (SERVER_IP, UDP_PORT))
+
+
+
+def receive_tcp():
     while True:
         try:
-            message = client.recv(1024).decode('ascii')
-            if message == 'NICK':
-                client.send(nickname.encode('ascii'))
-
-            else:
+            message = tcp_client.recv(BUFFER_SIZE).decode('ascii')
+            if message:
                 print(message)
 
 
         except:
             print("An error occured")
+            tcp_client.close()
             break
 
-    client.close()
+    
+
+def receive_udp():
+    """Receives status updates from the server via UDP."""
+    while True:
+        try:
+            data, _ = udp_client.recvfrom(BUFFER_SIZE)
+            print(data.decode('ascii'))  # Display status updates
+        except:
+            break
 
 
 
 def write():
     while True:
         try:
-            message = f'{nickname}: {input("")}'
-
-            if message.lower() == '/exit':
-                client.send(f"{nickname} has left the chat.".encode('ascii'))
+            msg_content = input("")
+            
+            if msg_content.lower() == "/exit":
+                tcp_client.send(f"{nickname} has left the chat".encode('ascii'))
                 print("Disconnecting from chat...")
-                client.close()
+                tcp_client.close()
                 break
-
+            elif msg_content.lower() == "/typing":
+                send_status("typing...")
             else:
-                client.send(message.encode('ascii'))
-
+                tcp_client.send(f"{nickname}: {msg_content}".encode('ascii'))
+        
         except:
             break
 
-    client.close()
     print("Client disconnected from chat")
 
 
-receive_thread = threading.Thread(target=receive)
+def send_file(filename):
+    """Sends a file to the server over TCP."""
+    try:
+        file_size = os.path.getsize(filename)
+        tcp_client.send(f"FILE:{nickname}:{filename}:{file_size}".encode())
+
+        with open(filename, "rb") as f:
+            while (data := f.read(BUFFER_SIZE)):
+                tcp_client.send(data)
+        
+        print(f"File '{filename}' sent successfully.")
+
+    except FileNotFoundError:
+        print(f"File '{filename}' not found.")
+
+
+
+receive_thread = threading.Thread(target=receive_tcp)
 receive_thread.start()
+
+udp_receive_thread = threading.Thread(target=receive_udp, daemon=True)
+udp_receive_thread.start()
 
 write_thread = threading.Thread(target=write)
 write_thread.start()
